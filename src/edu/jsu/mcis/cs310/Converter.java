@@ -103,10 +103,10 @@ public class Converter {
                 
                 // Puts the Headers in
                 if (iterator.hasNext()) {
-                    String[] beemp = iterator.next();
+                    String[] col = iterator.next();
                     
-                    for (int i = 0; i < beemp.length; i++)
-                        ColHeadings.add(beemp[i]);
+                    for (int i = 0; i < col.length; i++)
+                        ColHeadings.add(col[i]);
                 }
                 
                 //Puts the Product numbers in Object while putting rest of info in the other array
@@ -117,19 +117,19 @@ public class Converter {
                     
                     prodNums.add(theData[0]);
                     
-                    JsonArray woot = new JsonArray();
+                    JsonArray moreData = new JsonArray();
                     
                     for (int i = 1; i < theData.length; i++) {
                         String spot = theData[i];
-                    
+                        //System.err.println(spot);
                         if (spot.matches("[0-9]+")) {
-                            woot.add(Integer.valueOf(spot));
+                            moreData.add(Integer.valueOf(spot));
                         } else {
-                            woot.add(theData[i]);
+                            moreData.add(theData[i]);
                         }
                     }
                         
-                    records.add(woot);
+                    records.add(moreData);
                 }
             
                 data.put("ProdNums", prodNums);
