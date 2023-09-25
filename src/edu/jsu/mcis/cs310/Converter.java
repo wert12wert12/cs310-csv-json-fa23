@@ -6,6 +6,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import com.github.cliftonlabs.json_simple.*;
 import com.opencsv.*;
+import java.io.StringReader;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 
 public class Converter {
     
@@ -78,123 +81,125 @@ public class Converter {
     @SuppressWarnings("unchecked")
     public static String csvToJson(String csvString) {
         
-        //String result = "{}"; // default return value; replace later!
+        String jsonString = ""; // default return value; replace later!
         
-        JsonObject Obj = new JsonObject();
-        
-        JsonArray ProdNums = new JsonArray();
+        JsonArray prodNums = new JsonArray();
         
         JsonArray ColHeadings = new JsonArray();
         
-        JsonArray Data = new JsonArray();
+        JsonArray records = new JsonArray();
+        
+        LinkedHashMap<String, JsonArray> data = new LinkedHashMap<>();
+        
         
         try {
             
-            String[] Lines = csvString.split("\n");
+            //Newest Attempt
             
-            // Convert lines to json arrays.
-            
-            // remove first array as column headers
-            
-            //
-            
-            for (int i = 0; i < Lines.length; i++) {
-                // "6149-02","Where No Man Has Gone Before","1","01","1312.4 - 1313.8","9/22/1966","1/20/2007"
-                // ->
-                // ["6149-02","Where No Man Has Gone Before","1","01","1312.4 - 1313.8","9/22/1966","1/20/2007"]
-                var LineData = Lines[i].replace("\"", "").split(",");
+                CSVReader reader = new CSVReader(new StringReader(csvString));
+                List<String[]> full = reader.readAll();
+                Iterator<String[]> iterator = full.iterator();
                 
-                if (i == 0) {
-                    for (int d = 0; d < LineData.length; d++) {
-                        ColHeadings.add(LineData[d]);
-                    }
+                
+                // Puts the Headers in
+                if (iterator.hasNext()) {
+                    String[] beemp = iterator.next();
                     
-                    continue;
+                    for (int i = 0; i < beemp.length; i++)
+                        ColHeadings.add(beemp[i]);
                 }
                 
-                ProdNums.add(LineData[0]);
+                //Puts the Product numbers in Object while putting rest of info in the other array
                 
-                JsonArray DataArr = new JsonArray();
-                
-                for (int d = 1; d < LineData.length; d++) {
-                    DataArr.add(LineData[d]);
+                while (iterator.hasNext()) {
+                    
+                    String[] theData = iterator.next();
+                    
+                    prodNums.add(theData[0]);
+                    
+                    JsonArray woot = new JsonArray();
+                    
+                    for (int i = 1; i < theData.length; i++) {
+                        String spot = theData[i];
+                    
+                        if (spot.matches("[0-9]+")) {
+                            woot.add(Integer.valueOf(spot));
+                        } else {
+                            woot.add(theData[i]);
+                        }
+                    }
+                        
+                    records.add(woot);
                 }
-                
-                Data.add(DataArr);
-            }
             
-            Obj.put("ProdNums", ProdNums);
-            Obj.put("ColHeadings", ColHeadings);
-            Obj.put("Data", Data); 
+                data.put("ProdNums", prodNums);
+                data.put("ColHeadings", ColHeadings);
+                data.put("Data", records);
             
-            
-            
-            
+                jsonString = Jsoner.serialize(data);
         }
         catch (Exception e) {
             e.printStackTrace();
         }
         
-        return Obj.toJson();
+        return jsonString;
         
     }
     
     @SuppressWarnings("unchecked")
     public static String jsonToCsv(String jsonString) {
        
-        StringWriter writer = new StringWriter();
+        String csvString = "";
         
-        CSVWriter csvWriter = new CSVWriter(writer);
+        JsonObject json = Jsoner.deserialize(jsonString, new JsonObject());
+        
+        String[] ColHeadings = (String[]) ((JsonArray) json.get("ColHeadings")).toArray(new String[0]);
+        String[] ProdNums = (String[]) ((JsonArray) json.get("ProdNums")).toArray(new String[0]);
+        JsonArray Data = (JsonArray) json.get("Data");
+        
+        Iterator DataIt = Data.iterator();
         
         try {
             
-            List<String[]> data = new ArrayList<String[]>();
+            StringWriter writer = new StringWriter();
+            CSVWriter csvWriter = new CSVWriter(writer, ',', '"', '\\', "\n");
             
-            JsonObject parsedData = Jsoner.deserialize(jsonString, new JsonObject());
+            // write colheadings
+            csvWriter.writeNext(ColHeadings);
             
-            JsonArray ColHeadings = (JsonArray) parsedData.get("ColHeadings");
-            JsonArray ProdNums = (JsonArray) parsedData.get("ProdNums");
-            JsonArray Datas = (JsonArray) parsedData.get("Data");
-            
-            // add column headers.
-            String columnName = ColHeadings.toString();
-            String[] columnNameArray = columnName.substring(1, columnName.length() - 1).split(", ");
-            data.add(columnNameArray);
-            //adding production numbers
-            String productionNum = ProdNums.toString();
-            String[] proNumArray = productionNum.substring(1, productionNum.length() - 1).split(", ");
-            
-            
-            //adding the rest of the data
-            String datas = Datas.toString();
-            String[] datasArray = datas.substring(1, datas.length() - 1).split("],");
-           
-            List<String[]> allTogether = new ArrayList();
-            
-            // loop over prodnums
-            // grab data from prodnums and episode data.
-            for (int i = 0; i < proNumArray.length; i++) {
-                List<String> whatever = new ArrayList();
+            for (int i = 0; i < ProdNums.length; i++) {
+                var addZero = false;
+               
+                List<String> lineData = new ArrayList();
                 
-                String ProdNum = proNumArray[i];
-                String[] DataData = datasArray[i].substring(2, datasArray[i].length() - 1).split(", ");
+                lineData.add(ProdNums[i]);
                 
-                whatever.add(ProdNum);
-                whatever.addAll(Arrays.asList(DataData));
-                String[] arr = whatever.toArray(new String[0]);
-                allTogether.add(arr);
+                JsonArray d = (JsonArray) Data.get(i);
+                    
+                for (int j = 0; j < d.size(); j++) {
+                    var dString = d.getString(j);
+                   
+                    if ((dString.matches("[0-9]+")) && (Integer.valueOf(dString) < 10) && (addZero)) {
+                        dString = "0" + dString;
+                    } else if ((dString.matches("[0-9]+")) && (!addZero)) {
+                        addZero = true;
+                    }
+                    
+                    lineData.add(dString);
+                }
+                
+                csvWriter.writeNext(lineData.toArray(new String[0]));
             }
+
+            // convert data to csvString format.
+            csvString = writer.toString().trim();
             
-            data.addAll(allTogether);
-            
-            csvWriter.writeAll(data);
-            csvWriter.close();
         }
         catch (Exception e) {
             e.printStackTrace();
         }
         
-        return writer.toString();
+        return csvString;
         
     }
     
